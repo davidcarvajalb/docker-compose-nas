@@ -30,4 +30,4 @@ docker-compose.override.yml
 /subgen
 /suggestarr
 .env.test
-.claude
+.claude/settings.local.json
