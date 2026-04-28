@@ -26,3 +26,8 @@ docker-compose.override.yml
 /autobrr
 !/cleanuparr/blacklist.json
 !/cleanuparr/logs/.gitkeep
+/traefik/certs
+/subgen
+/suggestarr
+.env.test
+.claude
