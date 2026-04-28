@@ -23,12 +23,16 @@ services:
       - --certificatesresolvers.myresolver.acme.caserver=${LETS_ENCRYPT_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
       - --certificatesresolvers.myresolver.acme.email=${LETS_ENCRYPT_EMAIL}
       - --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
+      - --providers.file.filename=/dynamic.yml
+      - --providers.file.watch=true
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ${CONFIG_ROOT:-.}/letsencrypt:/letsencrypt
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - ./traefik/dynamic.yml:/dynamic.yml:ro
+      - ./traefik/certs:/certs:ro
     extra_hosts:
       - host.docker.internal:172.17.0.1
     healthcheck:
@@ -177,7 +181,6 @@ services:
       - traefik.enable=true
       - traefik.http.routers.seerr.rule=(Host(`${SEERR_HOSTNAME}`))
       - traefik.http.routers.seerr.tls=true
-      - traefik.http.routers.seerr.tls.certresolver=myresolver
       - traefik.http.services.seerr.loadbalancer.server.port=5055
       - homepage.group=Media
       - homepage.name=Seerr
@@ -358,7 +361,7 @@ services:
       - PORT_FORWARDING=1
       - PORT_PERSIST=1
       - PORT_SCRIPT=/pia-shared/portupdate-qbittorrent.sh
-      - FIREWALL=0
+      - FIREWALL=1
       - ACTIVE_HEALTHCHECKS=1
       - RECONNECT=1
     sysctls:
@@ -472,6 +475,7 @@ services:
       - ${CONFIG_ROOT:-.}/jellyfin:/config
       - ${DATA_ROOT}:/data
     ports:
+      - "8096:8096"
       - "7359:7359/udp"
       - "1900:1900/udp"
     restart: always
@@ -541,7 +545,7 @@ services:
       - HOMEPAGE_VAR_WEATHER_LONG=${HOMEPAGE_VAR_WEATHER_LONG}
       - HOMEPAGE_VAR_WEATHER_TIME=${TIMEZONE}
       - HOMEPAGE_VAR_WEATHER_UNIT=${HOMEPAGE_VAR_WEATHER_UNIT}
-      - HOMEPAGE_ALLOWED_HOSTS=${HOSTNAME}
+      - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}
     volumes:
       - ${CONFIG_ROOT:-.}/homepage:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -573,6 +577,54 @@ services:
       - AUTOHEAL_CONTAINER_LABEL=all
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
+  subgen:
+    image: mccloud/subgen
+    container_name: subgen
+    restart: always
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - WHISPER_MODEL=${WHISPER_MODEL:-large-v3-turbo}
+      - WHISPER_THREADS=4
+      - TRANSCRIBE_DEVICE=${TRANSCRIBE_DEVICE:-cuda}
+      - TRANSCRIBE_OR_TRANSLATE=transcribe
+      - CLEAR_VRAM_ON_COMPLETE=True
+      - MODEL_PATH=./models
+      - MODEL_CLEANUP_DELAY=30
+      - PROCADDEDMEDIA=False
+      - PROCMEDIAONPLAY=False
+      - NAMESUBLANG=en
+      - SKIPIFINTERNALSUBLANG=eng
+      - SKIP_IF_EXTERNAL_SUBTITLES_EXIST=True
+      - WEBHOOKPORT=9000
+      - CONCURRENT_TRANSCRIPTIONS=${CONCURRENT_TRANSCRIPTIONS:-1}
+      - WORD_LEVEL_HIGHLIGHT=False
+      - DEBUG=False
+      - USE_PATH_MAPPING=False
+      - UPDATE=False
+      - APPEND=False
+      - LRC_FOR_AUDIO_FILES=False
+    volumes:
+      - ${CONFIG_ROOT:-.}/subgen/models:/subgen/models
+      - ${DATA_ROOT}:/data
+    ports:
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000"]
+      interval: 1m00s
+      timeout: 15s
+      retries: 10
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - subgen
 
 networks:
   default:

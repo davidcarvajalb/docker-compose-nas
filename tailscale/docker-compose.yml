@@ -1,0 +1,26 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    restart: unless-stopped
+    hostname: ${TS_HOSTNAME:-docker-compose-nas}
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+    volumes:
+      - ${CONFIG_ROOT:-.}/tailscale/state:/var/lib/tailscale
+      - ${CONFIG_ROOT:-.}/tailscale/config:/config
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    labels:
+      - homepage.group=Utilities
+      - homepage.name=Tailscale
+      - homepage.icon=tailscale.png
+      - homepage.description=VPN mesh network
+      - homepage.weight=2
+    profiles:
+      - tailscale
